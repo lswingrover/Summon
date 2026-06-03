@@ -17,7 +17,6 @@ final class TriggerMatcherTests: XCTestCase {
     }
 
     // Helpers
-
     private func type(_ str: String) -> Snippet? {
         var last: Snippet?
         for ch in str { last = matcher.process(char: ch, against: snippets) }
@@ -25,7 +24,6 @@ final class TriggerMatcherTests: XCTestCase {
     }
 
     // Tests
-
     func testExactTriggerAtStartOfBuffer() {
         let result = type(";addr")
         XCTAssertNotNil(result)
@@ -52,7 +50,7 @@ final class TriggerMatcherTests: XCTestCase {
     func testNoMatchDisabledSnippet() {
         let disabled = [Snippet(trigger: ";off", expansion: "nope", enabled: false)]
         matcher = TriggerMatcher()
-        let result = type(";off")
+        _ = type(";off")
         XCTAssertNil(matcher.process(char: "x", against: disabled)) // sanity
         _ = matcher
         // Disabled snippets are filtered at the store level, not matcher level.
@@ -65,7 +63,7 @@ final class TriggerMatcherTests: XCTestCase {
     }
 
     func testBackspaceReducesBuffer() {
-        // Type ";add", backspace twice → buffer = ";a", then type "ddr" → ";addr" → matches
+        // Type ";add", backspace twice -> buffer = ";a", then type "ddr" -> ";addr" -> matches
         for ch in ";add" { _ = matcher.process(char: ch, against: snippets) }
         matcher.handleBackspace() // buffer = ";ad"
         matcher.handleBackspace() // buffer = ";a"
@@ -85,16 +83,25 @@ final class TriggerMatcherTests: XCTestCase {
     func testResetClearsBuffer() {
         for ch in ";add" { _ = matcher.process(char: ch, against: snippets) }
         matcher.reset()
-        let result = type("r") // only 'r' in buffer — no match
+        let result = type("r") // only 'r' in buffer -- no match
         XCTAssertNil(result)
     }
 
     func testMultipleTriggersSameBuffer() {
         _ = type(";hi ;email")
         // After the space following ;hi a match fires and buffer resets.
-        // Then ;email is typed fresh — it should also match.
+        // Then ;email is typed fresh -- it should also match.
         let result = type(";email")
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.trigger, ";email")
+    }
+
+    func testNoMatchWithoutBoundaryWhenFlagOff() {
+        // When requireBoundary is false, mid-word typing DOES fire the trigger.
+        // (With default requireBoundary=true, testNoMatchInMiddleOfWord shows it returns nil.)
+        matcher.requireBoundary = false
+        let result = type("foo;addr")
+        XCTAssertNotNil(result, "Trigger should match mid-word when requireBoundary = false")
+        XCTAssertEqual(result?.trigger, ";addr")
     }
 }

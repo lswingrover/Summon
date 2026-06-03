@@ -83,7 +83,8 @@ struct SummonApp: App {
 
 // MARK: - AppDelegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let monitor  = KeyboardMonitor()
     let matcher  = TriggerMatcher()
@@ -117,24 +118,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
     private func setupExpansionPipeline() {
         injector.matcher = matcher
+        matcher.requireBoundary = SummonAppState.shared.requireWordBoundary
 
         monitor.onChar = { [weak self] char in
             guard let self else { return }
-            Task {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.matcher.requireBoundary = SummonAppState.shared.requireWordBoundary
                 let active = await self.store.activeSnippets
                 if let match = self.matcher.process(char: char, against: active) {
-                    await MainActor.run {
-                        self.injector.inject(
-                            expansion: match.expansion,
-                            triggerLength: match.trigger.count
-                        )
-                    }
+                    self.injector.inject(
+                        expansion: match.expansion,
+                        triggerLength: match.trigger.count
+                    )
                 }
             }
         }
 
         monitor.onBackspace = { [weak self] in
-            self?.matcher.handleBackspace()
+            Task { @MainActor [weak self] in
+                self?.matcher.handleBackspace()
+            }
         }
     }
 

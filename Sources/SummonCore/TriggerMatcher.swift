@@ -5,8 +5,9 @@ import Foundation
 /// Design notes:
 /// - Buffer is capped at maxLength (longest known trigger + headroom).
 /// - Matches are checked after every keystroke for responsiveness.
-/// - Requires a word boundary (whitespace, punctuation, newline) before the trigger,
-///   OR the trigger starts at the beginning of the buffer.
+/// - When `requireBoundary` is true (default), a trigger only fires when preceded by
+///   whitespace, punctuation, newline, or the start of the buffer.
+/// - When `requireBoundary` is false, triggers fire anywhere in text (mid-word).
 /// - `isExpanding` flag suppresses matching while ExpansionInjector is active,
 ///   preventing infinite re-entrant expansion loops.
 public final class TriggerMatcher: @unchecked Sendable {
@@ -16,6 +17,10 @@ public final class TriggerMatcher: @unchecked Sendable {
 
     /// Set true by ExpansionInjector while it is injecting characters.
     public var isExpanding = false
+
+    /// When true (default), a trigger only fires when preceded by whitespace, punctuation,
+    /// newline, or the start of the buffer. When false, triggers fire anywhere in text.
+    public var requireBoundary: Bool = true
 
     public init() {}
 
@@ -44,6 +49,12 @@ public final class TriggerMatcher: @unchecked Sendable {
                 return snippet
             }
 
+            // If word boundary is not required, match anywhere
+            if !requireBoundary {
+                buffer.removeAll()
+                return snippet
+            }
+
             // Require word boundary before trigger
             let preceding = bufStr[bufStr.index(before: triggerStart)]
             if preceding.isWhitespace || preceding.isPunctuation || preceding.isNewline {
@@ -51,6 +62,7 @@ public final class TriggerMatcher: @unchecked Sendable {
                 return snippet
             }
         }
+
         return nil
     }
 
