@@ -1,0 +1,10 @@
+{
+  "name": "summon-companion",
+  "version": "1.0.0",
+  "description": "Companion skills for Summon — macOS text expander. List, add, and search snippets via conversation.",
+  "skills": [
+    "summon-list",
+    "summon-add",
+    "summon-search"
+  ]
+}
