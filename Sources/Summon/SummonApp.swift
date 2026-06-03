@@ -5,6 +5,9 @@ import SummonCore
 @main
 struct SummonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    // appState is the single source of truth — store lives inside it,
+    // so Window scene content closures can reference appState.store
+    // safely at scene-graph build time (before applicationDidFinishLaunching).
     @StateObject private var appState      = SummonAppState.shared
     @StateObject private var updateChecker = UpdateChecker()
 
@@ -24,7 +27,7 @@ struct SummonApp: App {
 
         // ── Snippet Manager ───────────────────────────────────────────────────
         Window("Snippet Manager", id: "snippets") {
-            SnippetManagerView(store: AppDelegate.shared.store)
+            SnippetManagerView(store: appState.store)
                 .environmentObject(appState)
                 .onAppear {
                     NSApp.setActivationPolicy(.regular)
@@ -38,7 +41,6 @@ struct SummonApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 720, height: 520)
-        .keyboardShortcut("s", modifiers: [.command, .shift])
 
         // ── Preferences ───────────────────────────────────────────────────────
         Window("Preferences", id: "prefs") {
@@ -71,7 +73,6 @@ struct SummonApp: App {
         .defaultPosition(.center)
     }
 
-    /// Drop back to accessory (no Dock icon) only when all windows are closed.
     private func setAccessoryIfNoWindows() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             let open = NSApp.windows.filter { $0.isVisible }
@@ -83,22 +84,20 @@ struct SummonApp: App {
 // MARK: - AppDelegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
-    static weak var shared: AppDelegate!
 
-    let store    = SnippetStore()
     let monitor  = KeyboardMonitor()
     let matcher  = TriggerMatcher()
     let injector = ExpansionInjector()
 
+    // Store comes from SummonAppState — no separate reference needed
+    private var store: SnippetStore { SummonAppState.shared.store }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppDelegate.shared = self
         NSApp.setActivationPolicy(.accessory)
 
-        // Wire shared state back-refs
-        let state = SummonAppState.shared
-        state.monitor = monitor
-        state.store   = store
-        state.refreshSnippetCount()
+        // Wire monitor back-ref into shared state
+        SummonAppState.shared.monitor = monitor
+        SummonAppState.shared.refreshSnippetCount()
 
         // Start companion API
         CompanionServer.shared.start(store: store)
@@ -106,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Wire expansion pipeline
         setupExpansionPipeline()
 
-        // Check accessibility — start monitor only if already granted
+        // Start or show accessibility prompt
         if KeyboardMonitor.isAccessibilityGranted() {
             if SummonAppState.shared.isEnabled { monitor.start() }
         } else {
