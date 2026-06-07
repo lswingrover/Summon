@@ -109,4 +109,3 @@ The Claude Cowork plugin lives in `companion/summon-companion.plugin/`. Run `sco
 - [NetWatch](https://github.com/lswingrover/NetWatch) — network health monitor
 - [ClipWatch](https://github.com/lswingrover/ClipWatch) — clipboard monitor
 - [GridForge](https://github.com/lswingrover/GridForge) — window layout manager (companion API on port 14731)
-- [obrien](https://github.com/lswingrover/obrien) — Cowork companion plugin framework
