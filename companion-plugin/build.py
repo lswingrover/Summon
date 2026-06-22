@@ -24,7 +24,7 @@ OUT  = HERE / 'summon-companion.plugin'
 
 PLUGIN_META = {
     'name': 'summon-companion',
-    'version': '1.0.0',
+    'version': '1.0.1',
     'description': (
         'AI skills for Summon — list, add, and search text expansion snippets '
         'via conversation. Requires Summon running on this Mac (localhost:14732).'
