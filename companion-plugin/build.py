@@ -42,9 +42,10 @@ SECRET_PATTERNS = [
     r'sk-ant-[A-Za-z0-9\-_]{20,}',
 ]
 
-VALIDATE_SCRIPT = (
-    Path.home() / 'Developer/ambassador-group/laforge/build/validate_plugin.py'
-)
+# Validation comes from obrien-buildtools — the package that owns the plugin validator
+# and the preflight scanner. It used to be a path into a laforge checkout, so this
+# build depended on an AG-org repo existing on one Mac.
+VALIDATE_CMD = [sys.executable, "-m", "obrien_buildtools.validate"]
 
 
 def sanitize_skill_md(content: str) -> str:
@@ -113,14 +114,21 @@ def build():
     print(f'Built: {OUT}  ({size_kb} KB)')
     print('Install: Claude → Settings → Capabilities → Plugins → Upload plugin')
 
-    if VALIDATE_SCRIPT.exists():
-        print('\nRunning validator...')
-        result = subprocess.run(['python3', str(VALIDATE_SCRIPT), str(OUT)])
-        if result.returncode == 1:
-            print('FAILED validation — fix errors before installing.')
-            sys.exit(1)
-    else:
-        print(f'\nWARN: validator not found at {VALIDATE_SCRIPT} — skipping')
+    # Fail closed: a missing validator is NOT a pass. This block used to print a WARN
+    # and ship anyway, so losing the laforge checkout would have silently disabled
+    # validation rather than failing loudly.
+    print("\nRunning validator...")
+    try:
+        result = subprocess.run(VALIDATE_CMD + [str(OUT)])
+    except FileNotFoundError as e:
+        raise SystemExit(
+            "FATAL: obrien-buildtools is not installed — refusing to ship an "
+            "unvalidated plugin. Install it:\n"
+            "  python3 -m pip install --break-system-packages -e ~/Developer/obrien-buildtools"
+        ) from e
+    if result.returncode == 1:
+        print("FAILED validation — fix errors before installing.")
+        sys.exit(1)
 
 
 if __name__ == '__main__':
