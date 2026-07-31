@@ -2,9 +2,18 @@
 """Summon ship script
 Usage: python3 ship_summon.py [--version X.X.X] [--notes "release notes"] [--dry-run]
 Builds, installs, tags, and pushes to GitHub.
+
+Changelog: --notes if given, else the shared changelog.py helper's
+auto-generation (commit subjects + working-tree diff since the last tag) —
+same implementation every scotty ship pipeline uses (fleet parity). This
+repo had NO changelog machinery at all before; CHANGELOG.md is created here.
 """
 import subprocess, sys, re, os, argparse, tempfile
 from pathlib import Path
+
+SCOTTY_SCRIPTS = Path.home() / "Developer/scotty/scripts"
+sys.path.insert(0, str(SCOTTY_SCRIPTS))
+from changelog import ensure_changelog_entry, prepend_entry, last_tag as _shared_last_tag  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 APP_NAME   = "Summon"
@@ -91,6 +100,9 @@ def main():
 
     print(f"\n▶ Summon ship: {old_ver} → {new_ver}  (build {build})")
 
+    # Capture the prior tag BEFORE we create the new one.
+    prev_tag = _shared_last_tag(SCRIPT_DIR)
+
     # Bump version files
     bump_plist_version(new_ver, build)
     bump_swift_version(new_ver)
@@ -101,12 +113,23 @@ def main():
     run(["bash", "build_app.sh"])
 
     if args.dry_run:
-        print("\n[dry-run] Skipping git commit, tag, push.")
+        print("\n[dry-run] Skipping changelog, git commit, tag, push.")
         return
 
-    # Commit version bump
+    # Changelog (committed together with the version bump). Explicit --notes
+    # always wins and gets written directly; otherwise prefer a hand-written
+    # entry if one already exists, else auto-generate (shared changelog.py).
+    print("\n── Changelog ──────────────────────────────────────────────")
+    if args.notes:
+        notes = args.notes
+        prepend_entry(SCRIPT_DIR / "CHANGELOG.md", new_ver, notes)
+    else:
+        notes = ensure_changelog_entry(SCRIPT_DIR, new_ver, since=prev_tag)
+    print(f"  ✓ CHANGELOG.md updated for v{new_ver}")
+
+    # Commit version bump + changelog
     print("\n── Git ────────────────────────────────────────────────────")
-    run(["git", "add", "Info.plist", "Sources/Summon/AppVersion.swift"])
+    run(["git", "add", "Info.plist", "Sources/Summon/AppVersion.swift", "CHANGELOG.md"])
     run(["git", "-c", "commit.gpgsign=false", "commit", "-m", f"chore: bump to v{new_ver}"])
 
     # Tag + push
@@ -116,7 +139,6 @@ def main():
     run(["git", "push", "origin", tag])
 
     # GitHub release
-    notes    = args.notes or f"Summon {tag}"
     zip_path = None
     try:
         print("\n── GitHub Release ─────────────────────────────────────────")
